@@ -83,6 +83,13 @@ class Corpus:
         print(len(self.sentenceQueue), "sentences in queue.")
         print(len(self.phonemeQueue), "phoneme strings in queue.")
 
+    def addPhonemes(self, string):
+        s = string.lower().split()
+        for x in s:
+            if x in self.fullCorpus:
+                for c in self.fullCorpus[x].phonemes.split():
+                    self.phonemeQueue.append(c)
+
     def phonemeMatrix(self, ADD_NOISE=True):
         if len(self.phonemeQueue) == 0:
             return -1

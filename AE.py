@@ -6,7 +6,8 @@ class Layer:
 
     def __init__(self, numFeatures, numOutputs):
         self.weights = np.random.normal(0, 0.5, size=(numFeatures, numOutputs))
-        self.re_weights = np.random.normal(0, 0.5, size=(numOutputs, numFeatures))
+        self.re_weights = np.zeros((numOutputs, numOutputs))
+        self.out = np.zeros((500, numOutputs))
 
     def activation(self, X):
         return X * (X > 0)
@@ -15,12 +16,20 @@ class Layer:
         return np.ceil(X)
 
     def forwardPass(self, X):
-        self.out = self.activation(np.matmul(X, self.weights))
+        self.out = self.activation(np.matmul(X, self.weights)) + self.activation(np.matmul(self.out, self.re_weights))
 
     def backwardPass(self, Y, lr):
         backY = self.dactivation(Y)
         backY = np.matmul(backY, np.transpose(self.weights))
+        self.weights = self.weights - np.matmul(np.transpose(backY), self.out)
         return backY
+
+def NormalizeLayer(X):
+    t = np.zeros((100, 157))
+    for i in range(min(60, len(X))):
+        for j in range(len(X[0])):
+            t[i][j] = X[i][j]
+    return t
 
 """        
 class Transition:
@@ -61,9 +70,9 @@ class Output:
         self.out = self.softmax(np.matmul(X, self.weights))
 
     def backwardPass(self, error, Y, lr):
-        backY = self.dactivation(Y)
-        backY = np.matmul(error * backY, np.transpose(self.weights))
-        return backY
+        delta = self.dactivation(error)
+        self.weights = self.weights - (self.weights * delta * lr)
+        return error
     
 class Network:
 
@@ -73,6 +82,7 @@ class Network:
         with open(text, encoding="UTF-8") as file:
             s = file.read()
         self.c.addSentences(s)
+        self.c.phonemeQueue = self.c.phonemeQueue[1000:]
         self.nextX()
 
     def nextX(self):
@@ -85,17 +95,11 @@ class Network:
         self.l2 = Layer(50, 100)
         self.lout = Output(100, len(self.X[0]))
 
-    def forwardPass(self, FIRST_PASS=False):
-        if FIRST_PASS:
-            self.l0.forwardPass(self.X)
-            self.l1.forwardPass(self.l0.out)
-            self.l2.forwardPass(self.l1.out)
-            self.lout.forwardPass(self.l2.out)
-        else:
-            self.l0.forwardPass(self.X)
-            self.l1.forwardPass(self.l0.out + self.t1.activation(np.matmul(self.l1.out, self.t1.weights)))
-            self.l2.forwardPass(self.l1.out + self.t2.activation(np.matmul(self.l2.out, self.t2.weights)))
-            self.lout.forwardPass(self.l2.out)
+    def forwardPass(self):
+        self.l0.forwardPass(self.X)
+        self.l1.forwardPass(self.l0.out)
+        self.l2.forwardPass(self.l1.out)
+        self.lout.forwardPass(self.l2.out)
             
     def crossEntropy(self, Y, yHat, RETURN_ERROR=False):
         #return -np.log((Y * (Y > 0)) - yHat)
@@ -113,13 +117,15 @@ class Network:
 
     def train(self, n=20):
         for i in range(n):
-            if i == 0:
-                self.forwardPass(FIRST_PASS=True)
-            else:
-                self.nextX()
-                self.forwardPass()
+            self.forwardPass()
             if i % 5 == 0:
                 print(np.sum(self.crossEntropy(self.X, self.lout.out, RETURN_ERROR=True)))
             else:
                 self.crossEntropy(self.X, self.lout.out)
             self.backwardPass()
+
+            if i == n-1:
+                print(" ".join([self.c.phonemes[x] for x in np.argmax(self.X, axis=1)]))
+                print(" ".join([self.c.phonemes[x] for x in np.argmax(self.lout.out, axis=1)]))
+            self.nextX()
+        
